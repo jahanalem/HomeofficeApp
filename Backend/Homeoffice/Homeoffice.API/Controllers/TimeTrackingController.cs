@@ -76,7 +76,7 @@ namespace Homeoffice.API.Controllers
             }
 
             var results = await _timeTrackingService.GetOverviewAsync(userId, startDate, endDate);
-           
+
             return Ok(results);
         }
     }
