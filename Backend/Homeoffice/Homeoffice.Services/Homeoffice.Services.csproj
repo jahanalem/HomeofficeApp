@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Homeoffice.Contracts\Homeoffice.Contracts.csproj" />
+    <ProjectReference Include="..\Homeoffice.DataAccess\Homeoffice.DataAccess.csproj" />
+    <ProjectReference Include="..\Homeoffice.Models\Homeoffice.Models.csproj" />
+  </ItemGroup>
+
+</Project>

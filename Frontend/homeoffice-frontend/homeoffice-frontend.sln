@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36109.1 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "homeoffice-frontend", "homeoffice-frontend.esproj", "{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E5AB824B-0869-6F56-C7CF-CA8D490D7C76}.Release|Any CPU.Deploy.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2A424AA5-E38C-45E5-9C7B-C39C823902C7}
+	EndGlobalSection
+EndGlobal
