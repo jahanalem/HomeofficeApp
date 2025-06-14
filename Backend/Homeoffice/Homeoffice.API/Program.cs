@@ -1,8 +1,9 @@
+using Homeoffice.Contracts.Services;
 using Homeoffice.DataAccess;
 using Homeoffice.Models.Entities.Identity;
+using Homeoffice.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization;
 
 namespace Homeoffice.API
 {
@@ -28,6 +29,11 @@ namespace Homeoffice.API
             })
             .AddEntityFrameworkStores<ApplicationDbContext>();
 #pragma warning restore IL2026
+
+            builder.Services.AddScoped<ITimeTrackingService, TimeTrackingService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<ITokenService, TokenService>();
 
             var app = builder.Build();
 

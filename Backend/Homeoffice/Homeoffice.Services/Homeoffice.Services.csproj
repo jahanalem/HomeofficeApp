@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Homeoffice.Contracts\Homeoffice.Contracts.csproj" />
     <ProjectReference Include="..\Homeoffice.DataAccess\Homeoffice.DataAccess.csproj" />
     <ProjectReference Include="..\Homeoffice.Models\Homeoffice.Models.csproj" />
