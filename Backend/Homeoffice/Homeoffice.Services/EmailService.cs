@@ -3,7 +3,6 @@ using Homeoffice.Contracts.Services;
 using Homeoffice.Models.Entities;
 using MailKit.Net.Smtp;
 using MailKit.Security;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using MimeKit;
 
