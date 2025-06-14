@@ -1,26 +1,55 @@
-﻿using Homeoffice.Contracts.Services;
+﻿using Homeoffice.Contracts.Configurations;
+using Homeoffice.Contracts.Services;
 using Homeoffice.Models.Entities;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace Homeoffice.Services
 {
     public class EmailService : IEmailService
     {
-        private readonly IConfiguration _configuration;
+        private readonly MailSettings _mailSettings;
 
-        public EmailService(IConfiguration configuration)
+        public EmailService(IOptions<MailSettings> mailSettings)
         {
-            _configuration = configuration;
+            _mailSettings = mailSettings.Value;
         }
 
-        public Task SendHomeOfficeCompletionEmailAsync(HomeOfficeEntry homeOfficeEntry)
+        public async Task SendHomeOfficeCompletionEmailAsync(HomeOfficeEntry homeOfficeEntry)
         {
-            var hrEmailAddress = _configuration["MailSettings:HrEmailAddress"];
+            var hrEmailAddress = _mailSettings.HrEmailAddress;
+            var senderEmail = _mailSettings.SenderEmail;
+            var senderName = _mailSettings.SenderName;
+
+            var smtpHost = _mailSettings.SmtpHost;
+            var smtpPort = _mailSettings.SmtpPort;
+            var smtpUser = _mailSettings.SmtpUser;
+            var smtpPass = _mailSettings.SmtpPass;
 
             var subject = $"Home Office Zeit für {homeOfficeEntry.User.UserName}";
-            var body = $"Mitarbeiter {homeOfficeEntry.User.UserName} hat von {homeOfficeEntry.StartTime} bis {homeOfficeEntry.EndTime} gearbeitet.\nBeschreibung: {homeOfficeEntry.Description}";
+            var body = new TextPart("html")
+            {
+                Text = $"<h3>Abgeschlossener Homeoffice-Eintrag</h3>" +
+                       $"<p><strong>Mitarbeiter:</strong> {homeOfficeEntry.User.UserName}</p>" +
+                       $"<p><strong>Start:</strong> {homeOfficeEntry.StartTime:dd.MM.yyyy HH:mm} Uhr</p>" +
+                       $"<p><strong>Ende:</strong> {homeOfficeEntry.EndTime:dd.MM.yyyy HH:mm} Uhr</p>" +
+                       $"<p><strong>Beschreibung:</strong> {homeOfficeEntry.Description ?? "Keine"}</p>"
+            };
 
-            throw new NotImplementedException();
+            var email = new MimeMessage();
+            email.Subject = subject;
+            email.From.Add(new MailboxAddress(senderName, senderEmail));
+            email.To.Add(MailboxAddress.Parse(hrEmailAddress));
+            email.Body = body;
+
+            using var smtp = new SmtpClient();
+            await smtp.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+            await smtp.AuthenticateAsync(smtpUser, smtpPass);
+            await smtp.SendAsync(email);
+            await smtp.DisconnectAsync(true);
         }
     }
 }

@@ -1,3 +1,4 @@
+using Homeoffice.Contracts.Configurations;
 using Homeoffice.Contracts.Services;
 using Homeoffice.DataAccess;
 using Homeoffice.Models.Entities.Identity;
@@ -12,6 +13,8 @@ namespace Homeoffice.API
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateSlimBuilder(args);
+
+            builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
