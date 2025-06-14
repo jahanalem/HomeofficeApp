@@ -1,9 +1,11 @@
 ﻿namespace Homeoffice.Contracts.Dtos
 {
-    public record HomeOfficeEntryDto(int Id,
+    public record HomeOfficeEntryDto(
+        int Id,
         DateTimeOffset StartTime,
         DateTimeOffset? EndTime,
         string? Description,
-        bool IsEmailSent
+        bool IsEmailSent,
+        string UserId
     );
 }
