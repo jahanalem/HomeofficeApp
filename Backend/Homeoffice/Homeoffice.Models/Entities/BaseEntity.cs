@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Homeoffice.Models.Entities
 {
-    public abstract class BaseEntity : IBaseEntity<int>
+    public abstract class BaseEntity : IBaseEntity<int>, IAuditable
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

@@ -1,10 +1,8 @@
 ﻿
 namespace Homeoffice.Models.Entities
 {
-    public interface IBaseEntity<TKey>
+    public interface IBaseEntity<TKey> : IAuditable
     {
         TKey Id { get; set; }
-        public DateTimeOffset? CreatedDate { get; set; }
-        public DateTimeOffset? ModifiedDate { get; set; }
     }
 }

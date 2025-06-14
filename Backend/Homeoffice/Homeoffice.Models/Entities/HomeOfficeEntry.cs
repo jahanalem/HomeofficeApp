@@ -5,7 +5,7 @@ namespace Homeoffice.Models.Entities
     public class HomeOfficeEntry : BaseEntity
     {
         public DateTimeOffset StartTime { get; set; }
-        public DateTimeOffset EndTime { get; set; }
+        public DateTimeOffset? EndTime { get; set; }
 
         public string? Description { get; set; }
 
