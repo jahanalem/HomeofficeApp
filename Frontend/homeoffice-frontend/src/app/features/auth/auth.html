@@ -1,0 +1,51 @@
+<main class="container">
+  <div class="login-card">
+    <header class="card-header">
+      <h2>HomeOffice Check-in</h2>
+      <p>Bitte melden Sie sich an.</p>
+    </header>
+
+    <form (ngSubmit)="login()" class="card-body">
+
+      <div class="input-group">
+        <label for="username">Username:</label>
+        <input
+          id="username"
+          type="text"
+          [(ngModel)]="username"
+          name="username"
+          required>
+      </div>
+
+      <div class="input-group">
+        <label for="password">Password:</label>
+        <input
+          id="password"
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          required>
+      </div>
+
+      <!-- Display error message if one exists -->
+      @if (errorMessage()) {
+        <div class="error-message">
+          {{ errorMessage() }}
+        </div>
+      }
+
+      <button
+        type="submit"
+        class="login-btn"
+        [disabled]="isLoading()">
+        <!-- Show loading text when a request is active -->
+        @if (isLoading()) {
+          <span>Wird geladen...</span>
+        } @else {
+          <span>Login</span>
+        }
+      </button>
+
+    </form>
+  </div>
+</main>

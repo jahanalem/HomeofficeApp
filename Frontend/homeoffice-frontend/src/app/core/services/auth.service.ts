@@ -9,10 +9,10 @@ import { tap } from 'rxjs';
 })
 export class AuthService {
   private readonly baseUrl = environment.apiUrl;
-  private readonly apiUrl  = `${this.baseUrl}/account`;
+  private readonly apiUrl = `${this.baseUrl}/account`;
 
   currentUser = signal<ILoginResponse | null | undefined>(undefined);
-  isLoggedIn  = computed(() => !!this.currentUser());
+  isLoggedIn = computed(() => !!this.currentUser());
 
   private readonly http = inject(HttpClient);
 
@@ -27,7 +27,7 @@ export class AuthService {
   }
 
   login(values: ILoginRequest) {
-    this.http.post<ILoginResponse>(`${this.apiUrl}/login`, values).pipe(
+    return this.http.post<ILoginResponse>(`${this.apiUrl}/login`, values).pipe(
       tap(response => {
         localStorage.setItem('user_token', JSON.stringify(response));
         this.currentUser.set(response);

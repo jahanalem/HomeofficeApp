@@ -3,11 +3,15 @@ import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  templateUrl: './app.html',
   standalone: true,
   imports: [RouterOutlet],
-  styleUrl: './app.scss'
+  template: `
+    <main>
+      <router-outlet></router-outlet>
+    </main>
+  `,
+  styles: []
 })
 export class App {
-  protected title = 'homeoffice-frontend';
+  title = 'homeoffice-frontend';
 }

@@ -1,0 +1,59 @@
+<main class="container">
+  <div class="card">
+    <header class="card-header">
+      <h2>Homeoffice Check-in</h2>
+      @if (currentUser; as user) {
+        <p>Angemeldet als: <strong>{{ user.username }}</strong></p>
+      }
+      <button class="logout-btn" (click)="logout()">Abmelden</button>
+    </header>
+
+    <div class="card-body">
+      <div class="description-group">
+        <label for="description">Aufgabenbeschreibung (optional)</label>
+        <input
+          id="description"
+          type="text"
+          placeholder="z.B. Arbeit an Projekt XY..."
+          [disabled]="isTracking"
+          [(ngModel)]="description">
+      </div>
+
+      <div class="controls">
+        <!-- Start Button -->
+        <button
+          class="control-btn start-btn"
+          [disabled]="isTracking || isLoading()"
+          (click)="startTracking()">
+          ▶
+        </button>
+
+        <!-- Stop Button -->
+        <button
+          class="control-btn stop-btn"
+          [disabled]="!isTracking || isLoading()"
+          (click)="stopTracking()">
+          ■
+        </button>
+      </div>
+
+      @if (isTracking) {
+        <div class="status-indicator active">
+          Zeiterfassung läuft...
+        </div>
+      }
+
+       @if (errorMessage()) {
+        <div class="error-message">
+          {{ errorMessage() }}
+        </div>
+      }
+
+    </div>
+
+    <footer class="card-footer">
+        <!-- Dieser Button würde später zur Übersicht-Seite navigieren -->
+        <button class="overview-btn" disabled>Übersicht (in Kürze)</button>
+    </footer>
+  </div>
+</main>
