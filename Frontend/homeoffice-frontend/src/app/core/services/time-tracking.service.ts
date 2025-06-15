@@ -18,7 +18,12 @@ export class TimeTrackingService {
   constructor() { }
 
   start(description: string | null): Observable<IHomeOfficeEntry> {
-    return this.http.post<IHomeOfficeEntry>(`${this.apiUrl}/start`, description).pipe(
+    const body = description === null ? '' : JSON.stringify(description);
+    return this.http.post<IHomeOfficeEntry>(`${this.apiUrl}/start`, body, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
       tap(response => this.activeEntry.set(response))
     );
   }
