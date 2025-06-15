@@ -1,5 +1,5 @@
 import { IHomeOfficeEntry } from './../models/home-office.model';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { environment } from '../../../environment';
 import { Observable, tap } from 'rxjs';
@@ -32,5 +32,13 @@ export class TimeTrackingService {
     return this.http.post<IHomeOfficeEntry>(`${this.apiUrl}/stop`, {}).pipe(
       tap(() => this.activeEntry.set(null))
     );
+  }
+
+  getOverview(startDate: Date, endDate: Date): Observable<IHomeOfficeEntry[]> {
+    const params = new HttpParams()
+      .set('startDate', startDate.toISOString())
+      .set('endDate', endDate.toISOString());
+
+    return this.http.get<IHomeOfficeEntry[]>(`${this.apiUrl}/overview`, { params });
   }
 }

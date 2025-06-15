@@ -1,0 +1,42 @@
+<main class="container">
+  <div class="overview-card">
+    <header class="card-header">
+      <button class="back-btn" (click)="goBack()">⬅️ Zurück</button>
+      <h2>HomeOffice-Übersicht</h2>
+    </header>
+
+    <div class="card-body">
+      <div class="date-picker-group">
+        <label for="date-select">Datum wählen:</label>
+        <input
+          id="date-select"
+          type="date"
+          [(ngModel)]="selectedDate">
+        <button (click)="fetchEntries()" [disabled]="isLoading()">Abrufen</button>
+      </div>
+
+      <div class="results-container">
+        @if (isLoading()) {
+          <p class="status-text">Lade Einträge...</p>
+        } @else {
+          @if (entries().length > 0) {
+            <ul class="entry-list">
+              @for (entry of entries(); track entry.id) {
+                <li class="entry-item">
+                  <span class="time">{{ entry.startTime | date:'HH:mm' }} - {{ entry.endTime | date:'HH:mm' }} Uhr</span>
+                  <span class="description">{{ entry.description || 'Keine Beschreibung' }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="status-text">Keine Einträge für diesen Tag gefunden.</p>
+          }
+        }
+
+        @if (errorMessage()) {
+          <p class="error-message">{{ errorMessage() }}</p>
+        }
+      </div>
+    </div>
+  </div>
+</main>

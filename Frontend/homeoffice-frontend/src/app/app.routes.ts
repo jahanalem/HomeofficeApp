@@ -14,6 +14,12 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
+    path: 'overview',
+    loadComponent: () =>
+      import('./features/overview/overview.component').then(c => c.OverviewComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: '',
     redirectTo: 'homeoffice',
     pathMatch: 'full'
