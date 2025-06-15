@@ -15,7 +15,7 @@
           id="description"
           type="text"
           placeholder="z.B. Arbeit an Projekt XY..."
-          [disabled]="isTracking"
+          [disabled]="isTracking()"
           [(ngModel)]="description">
       </div>
 
@@ -23,7 +23,7 @@
         <!-- Start Button -->
         <button
           class="control-btn start-btn"
-          [disabled]="isTracking || isLoading()"
+          [disabled]="isTracking() || isLoading()"
           (click)="startTracking()">
           ▶
         </button>
@@ -31,13 +31,13 @@
         <!-- Stop Button -->
         <button
           class="control-btn stop-btn"
-          [disabled]="!isTracking || isLoading()"
+          [disabled]="!isTracking() || isLoading()"
           (click)="stopTracking()">
           ■
         </button>
       </div>
 
-      @if (isTracking) {
+      @if (isTracking()) {
         <div class="status-indicator active">
           Zeiterfassung läuft...
         </div>

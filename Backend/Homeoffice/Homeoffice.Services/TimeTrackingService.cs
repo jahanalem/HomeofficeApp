@@ -64,7 +64,7 @@ namespace Homeoffice.Services
 
             try
             {
-                await _emailService.SendHomeOfficeCompletionEmailAsync(activeEntry);
+                await _emailService.SendEmailAsync(activeEntry);
                 activeEntry.IsEmailSent = true;
             }
             catch (Exception ex)

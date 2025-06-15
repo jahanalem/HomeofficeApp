@@ -17,7 +17,7 @@ namespace Homeoffice.Services
             _mailSettings = mailSettings.Value;
         }
 
-        public async Task SendHomeOfficeCompletionEmailAsync(HomeOfficeEntry homeOfficeEntry)
+        public async Task SendEmailAsync(HomeOfficeEntry homeOfficeEntry)
         {
             var hrEmailAddress = _mailSettings.HrEmailAddress;
             var senderEmail = _mailSettings.SenderEmail;
@@ -43,12 +43,20 @@ namespace Homeoffice.Services
             email.From.Add(new MailboxAddress(senderName, senderEmail));
             email.To.Add(MailboxAddress.Parse(hrEmailAddress));
             email.Body = body;
+            try
+            {
+                using var smtp = new SmtpClient();
+                await smtp.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+                await smtp.AuthenticateAsync(smtpUser, smtpPass);
+                await smtp.SendAsync(email);
+                await smtp.DisconnectAsync(true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send email: {ex.Message}");
+                throw new InvalidOperationException("Failed to send email notification.", ex);
+            }
 
-            using var smtp = new SmtpClient();
-            await smtp.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
-            await smtp.AuthenticateAsync(smtpUser, smtpPass);
-            await smtp.SendAsync(email);
-            await smtp.DisconnectAsync(true);
         }
     }
 }

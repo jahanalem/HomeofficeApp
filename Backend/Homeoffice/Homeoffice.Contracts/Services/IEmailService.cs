@@ -4,6 +4,6 @@ namespace Homeoffice.Contracts.Services
 {
     public interface IEmailService
     {
-        Task SendHomeOfficeCompletionEmailAsync(HomeOfficeEntry homeOfficeEntry);
+        Task SendEmailAsync(HomeOfficeEntry homeOfficeEntry);
     }
 }

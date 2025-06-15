@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../core/services/auth.service';
 import { TimeTrackingService } from '../../core/services/time-tracking.service';
 import { Router } from '@angular/router';
@@ -18,7 +18,7 @@ export class Homeoffice {
   router = inject(Router);
 
   currentUser = this.authService.currentUser();
-  isTracking = this.timeTrackingService.isTracking();
+  isTracking = computed(() => this.timeTrackingService.isTracking());
 
   description = signal<string | null>(null);
 

@@ -16,6 +16,7 @@ try
     var builder = WebApplication.CreateBuilder(args);
 
     builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+    builder.Services.Configure<SendGridSettings>(builder.Configuration.GetSection("EmailSenderProvider:SendGrid"));
 
     // Database context configurieren
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -57,7 +58,7 @@ try
 
     // Services
     builder.Services.AddScoped<ITimeTrackingService, TimeTrackingService>();
-    builder.Services.AddScoped<IEmailService, EmailService>();
+    builder.Services.AddScoped<IEmailService, SendGridEmailService>();
     builder.Services.AddScoped<IAuthService, AuthService>();
     builder.Services.AddScoped<ITokenService, TokenService>();
 
