@@ -38,9 +38,16 @@ namespace Homeoffice.Services
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
-            var token = tokenHandler.CreateToken(tokenDescriptor);
+            try
+            {
+                var token = tokenHandler.CreateToken(tokenDescriptor);
 
-            return tokenHandler.WriteToken(token);
+                return tokenHandler.WriteToken(token);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Token creation failed", ex);
+            }
         }
     }
 }
