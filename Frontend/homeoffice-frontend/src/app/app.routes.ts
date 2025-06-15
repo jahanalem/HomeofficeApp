@@ -5,12 +5,12 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () =>
-      import('./features/auth/auth').then(c => c.Auth)
+      import('./features/auth/auth.component').then(c => c.AuthComponent)
   },
   {
     path: 'homeoffice',
     loadComponent: () =>
-      import('./features/homeoffice/homeoffice').then(c => c.Homeoffice),
+      import('./features/homeoffice/homeoffice.component').then(c => c.HomeofficeComponent),
     canActivate: [authGuard]
   },
   {

@@ -6,13 +6,13 @@ import { Router } from '@angular/router';
 import { ILoginRequest } from '../../core/models/auth.model';
 
 @Component({
-  selector: 'app-auth',
+  selector: 'app-auth.component',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './auth.html',
-  styleUrl: './auth.scss'
+  templateUrl: './auth.component.html',
+  styleUrl: './auth.component.scss'
 })
-export class Auth {
+export class AuthComponent {
   authService = inject(AuthService);
   router = inject(Router);
 

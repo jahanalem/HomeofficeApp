@@ -6,13 +6,13 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
 @Component({
-  selector: 'app-homeoffice',
+  selector: 'app-homeoffice.component',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
-  templateUrl: './homeoffice.html',
-  styleUrl: './homeoffice.scss'
+  templateUrl: './homeoffice.component.html',
+  styleUrl: './homeoffice.component.scss'
 })
-export class Homeoffice {
+export class HomeofficeComponent {
   authService = inject(AuthService);
   timeTrackingService = inject(TimeTrackingService);
   router = inject(Router);
