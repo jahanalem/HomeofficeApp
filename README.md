@@ -1481,3 +1481,147 @@ Dieser zweite Block definiert die "Montagelinie", die jede einzelne HTTP-Anfrage
 Dieser letzte Block ist ein nützlicher Helfer. Bei jedem Start der Anwendung wird sichergestellt, dass die Datenbank auf dem neuesten Stand ist (`MigrateAsync`). Anschließend wird geprüft, ob bereits Benutzer vorhanden sind. Wenn nicht, werden automatisch zwei Standard-Benutzer angelegt. Das erleichtert das Testen und die erste Inbetriebnahme der Anwendung enorm.
 
 Mit dieser `Program.cs`-Datei ist das Backend nun ein vollständig konfiguriertes, sicheres und funktionsbereites System. Die Dokumentation des Backends ist damit abgeschlossen.
+
+
+
+-----
+
+## Das Frontend: Eine moderne Angular-Anwendung
+
+Das Frontend wurde mit **Angular 20** umgesetzt und folgt modernen Entwicklungspraktiken. Der Fokus lag auf einer sauberen Architektur, guter Performance und einer reaktiven Benutzeroberfläche.
+
+### 1\. Architektur und Ordnerstruktur
+
+Um das Projekt von Anfang an übersichtlich und wartbar zu halten, wurde eine bewährte Ordnerstruktur gewählt, die die Verantwortlichkeiten klar trennt:
+
+  * **`features`**: Hier leben die eigentlichen "Seiten" oder Hauptfunktionen der Anwendung. Jeder Ordner hier drin ist eine eigenständige Funktionalität. In unserem Fall sind das die `auth`-Komponente (für den Login) und die `homeoffice`- sowie `overview`-Komponenten.
+
+  * **`core`**: Dies ist der Maschinenraum der Anwendung. Hier befindet sich die zentrale Logik, die nur einmal für die gesamte Anwendung benötigt wird.
+
+      * `services`: Anwendungsweite Singleton-Services (`AuthService`, `TimeTrackingService`).
+      * `guards`: Die "Türsteher" für unsere Routen (`AuthGuard`).
+      * `interceptors`: Globale "Poststellen", die jede HTTP-Anfrage abfangen (`JwtInterceptor`).
+      * `models`: TypeScript-Interfaces für die Datenstrukturen (DTOs).
+
+  * **`shared`**: Eine Sammlung von wiederverwendbaren UI-Bausteinen. Wenn wir zum Beispiel einen speziellen Button oder einen Lade-Spinner hätten, den wir auf mehreren Seiten verwenden, würde er hier leben.
+
+Diese Trennung sorgt dafür, dass der Code logisch gruppiert und leicht zu finden ist.
+
+### 2\. Guards: Die Türsteher der Anwendung
+
+**Was ist ein Guard?**
+Ein "Route Guard" in Angular ist eine Funktion, die wie ein Türsteher vor einer Route steht. Bevor ein Benutzer eine Seite aufrufen darf, fragt der Angular-Router den Guard um Erlaubnis. Der Guard kann dann entscheiden: "Ja, du darfst passieren" oder "Nein, du wirst woanders hingeleitet".
+
+**Warum benötigen wir ihn?**
+Wir müssen sicherstellen, dass nur eingeloggte Benutzer auf das Dashboard (`/homeoffice`) oder die Übersicht (`/overview`) zugreifen können. Unser `authGuard` prüft genau das: Ist der Benutzer im `AuthService` als eingeloggt markiert? Wenn nicht, wird er sofort und automatisch zur `/login`-Seite umgeleitet.
+
+<details>
+<summary><b>Code: core/guards/auth.guard.ts</b></summary>
+<br>
+
+```typescript
+import { inject } from '@angular/core';
+import { CanActivateFn, Router } from '@angular/router';
+import { AuthService } from '../services/auth.service';
+
+export const authGuard: CanActivateFn = (route, state) => {
+  const authService = inject(AuthService);
+  const router      = inject(Router);
+
+  if (authService.isLoggedIn()) {
+    return true; // Zugriff erlaubt
+  }
+
+  // Zugriff verweigert: Zum Login umleiten
+  return router.parseUrl('/login');
+};
+```
+
+</details>
+
+### 3\. Interceptors: Die Poststelle der Anwendung
+
+**Was ist ein Interceptor?**
+Ein "HTTP Interceptor" ist wie eine zentrale Poststelle für alle API-Anfragen. Jede Anfrage, die die Anwendung an das Backend sendet, geht durch den Interceptor. Dort kann die Anfrage eingesehen und modifiziert werden, bevor sie tatsächlich über das Netzwerk gesendet wird.
+
+**Warum benötigen wir ihn?**
+Nach dem Login erhalten wir einen JWT. Wir müssten diesen Token bei jeder einzelnen geschützten API-Anfrage manuell im Header mitsenden. Das ist mühsam und fehleranfällig. Der `jwtInterceptor` automatisiert diesen Prozess. Er fängt jede Anfrage ab, prüft, ob ein Token vorhanden ist, und fügt ihn automatisch zum `Authorization: Bearer <token>`-Header hinzu. Das ist eine saubere "Don't Repeat Yourself"-Lösung.
+
+<details>
+<summary><b>Code: core/interceptors/jwt.interceptor.ts</b></summary>
+<br>
+
+```typescript
+import { HttpInterceptorFn } from '@angular/common/http';
+import { AuthService } from '../services/auth.service';
+import { inject } from '@angular/core';
+
+export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
+  const authservice = inject(AuthService);
+  const token = authservice.currentUser()?.token;
+
+  if (token) {
+    // Klonen der Anfrage und Hinzufügen des Headers
+    req = req.clone({
+      setHeaders: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+  }
+
+  // Die modifizierte Anfrage weitersenden
+  return next(req);
+};
+```
+
+</details>
+
+### 4\. Routing: Der Wegweiser der Anwendung
+
+Die `app.routes.ts`-Datei ist die zentrale Landkarte der Anwendung. Sie definiert, welche Komponente bei welcher URL geladen werden soll.
+
+<details>
+<summary><b>Code: app.routes.ts</b></summary>
+<br>
+
+```typescript
+import { Routes } from '@angular/router';
+import { authGuard } from './core/guards/auth.guard';
+
+export const routes: Routes = [
+  {
+    path: 'login',
+    loadComponent: () =>
+      import('./features/auth/auth.component').then(c => c.AuthComponent)
+  },
+  {
+    path: 'homeoffice',
+    loadComponent: () =>
+      import('./features/homeoffice/homeoffice.component').then(c => c.HomeofficeComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'overview',
+    loadComponent: () =>
+      import('./features/overview/overview.component').then(c => c.OverviewComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: '',
+    redirectTo: 'homeoffice',
+    pathMatch: 'full'
+  },
+  {
+    path: '**',
+    redirectTo: 'homeoffice'
+  }
+];
+```
+
+</details>
+
+**Die wichtigsten Merkmale dieser Konfiguration sind:**
+
+  * **Lazy Loading (`loadComponent`):** Dies ist eine entscheidende Performance-Optimierung. Der Code für eine Seite (z.B. die `OverviewComponent`) wird erst dann aus dem Netz geladen, wenn der Benutzer sie wirklich besucht. Das macht die Anwendung beim ersten Laden viel schneller.
+  * **Geschützte Routen (`canActivate`):** Die Routen `/homeoffice` und `/overview` sind mit unserem `authGuard` versehen, was den Zugriff für nicht eingeloggte Benutzer verhindert.
+  * **Weiterleitungen (`redirectTo`):** Sorgen für ein gutes Benutzererlebnis, indem sie den Benutzer immer auf eine gültige Seite leiten, auch wenn er eine falsche URL eingibt.
