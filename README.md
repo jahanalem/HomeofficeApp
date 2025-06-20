@@ -64,9 +64,26 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
 ## Motivation
 Dieses Projekt hat mich von Anfang an begeistert. Die Idee, eine praxisnahe und vollständige Anwendung mit einem modernen Tech-Stack zu entwickeln, war für mich der ideale Anlass, meine Fähigkeiten gezielt einzusetzen und weiterzuentwickeln. Mein Ziel war es, eine Lösung zu schaffen, die stabil, gut wartbar und sicher ist – genau so, wie man es auch in einem professionellen Entwicklungsteam erwarten würde.
 
-Im Zentrum stand dabei folgende Herausforderung:
+Aufgabenstellung:
 
-> Es soll eine Web-Anwendung entwickelt werden, die es Mitarbeitern ermöglicht, ihre Arbeitszeiten im Homeoffice zu erfassen. Ein Mitarbeiter soll sich einloggen, seine Arbeitszeit starten und stoppen können. Beim Stoppen der Zeit soll automatisch eine E-Mail an das Personalbüro versendet werden. Zusätzlich soll eine Übersicht der erfassten Zeiten einsehbar sein.
+> Es soll eine Anwendung erstellt werden, die es Mitarbeitern ermöglicht, sich im HomeOffice anzumelden und die automatisch die Zeiten an das Personalburo übermittelt.
+> Dazu soll der Mitarbeiter sich zuerst einloggen, dann die Möglichkeit haben seine HomeOffice Zeit zu starten, sie wieder zu stoppen und sich für verschiedene Tag eine Übersicht ausgeben zu lassen.
+Beim Stoppen der HomeOffice-Tatigkeit soll automatisch eine Mail an das Personalbüro verschickt werden.
+> 
+> Voraussetzungen:
+> Es soll eine Anwendung erstellt werden, die sich aus drei Teilen zusammensetzt:
+> 1. Als Grundlage der Datenhaltung dient eine Datenbank (SQLServer | MongoDB).
+> 2. Ein Webservice (ASP.NET WebAPI | NodeJS] dient zum Bereitstellen und Ändern der Daten in der Datenbank.
+> 3. Das Frontend zur Anzeige bildet eine einfache [HTML-Anwendung | WPF-Anwendung | Angular-Anwendung | App].
+> 
+> Anforderungen:
+> 1. Es ist ein Datenmodell der genutzten Datentypen zu erstellen. Auf diesem sollte die
+Datenbank beruhen.
+> 2. Der Webservice muss einen Login zur Verfügung stellen. Dieser Webservice kann entweder ein REST-Service oder ein GraphQL-Service sein.
+> 3. Die Konfiguration der Personalbüro-Mail-Adresse soll im Webservice hinterlegt sein. Allerdings soll sie nicht im Code liegen, sondern eine Konfigurationsdatei nutzen!
+> 4. User werden als gegeben in der Datenbank vorausgesetzt. Das bedeutet sie können per Import oder Skript in die DB eingespielt werden. Es ist keine eigene Nutzerverwaltung zu erstellen!
+> 5. Der Mailversand soll über ein einzubindendes Paket aus einem der Technologie zugrunde liegenden Paketmanager realisiert werden.
+> 6. Design spielt keine Rolle.
 
 Für die Umsetzung habe ich mich für ein **.NET 9 Backend** und ein **Angular 20 Frontend** entschieden, um moderne und leistungsstarke Technologien zu nutzen.
 
