@@ -4,7 +4,7 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
 
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
 
-- [Homeoffice Zeiterfassung – Ein Full-Stack-Projekt](#homeoffice-zeiterfassung--ein-full-stack-projekt)
+- [Homeoffice Zeiterfassung – Ein Full-Stack-Projekt](#homeoffice-zeiterfassung-ein-full-stack-projekt)
    * [Motivation](#motivation)
    * [Projektstruktur im Backend](#projektstruktur-im-backend)
          - [`Homeoffice.Models`](#homeofficemodels)
@@ -19,8 +19,8 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
          - [Wichtige Konzepte im `DbContext`](#wichtige-konzepte-im-dbcontext)
       + [Fluent API Konfigurationen](#fluent-api-konfigurationen)
    * [Datenbank-Migrationen](#datenbank-migrationen)
-         - [`dotnet ef migrations add Create_Database -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext -o Data/Migrations`](#dotnet-ef-migrations-add-create_database--p-homeofficedataaccess--s-homeofficeapi--c-applicationdbcontext--o-datamigrations)
-         - [`dotnet ef database update -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext`](#dotnet-ef-database-update--p-homeofficedataaccess--s-homeofficeapi--c-applicationdbcontext)
+         - [`dotnet ef migrations add Create_Database -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext -o Data/Migrations`](#dotnet-ef-migrations-add-create_database-p-homeofficedataaccess-s-homeofficeapi-c-applicationdbcontext-o-datamigrations)
+         - [`dotnet ef database update -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext`](#dotnet-ef-database-update-p-homeofficedataaccess-s-homeofficeapi-c-applicationdbcontext)
          - [Warum muss `Microsoft.EntityFrameworkCore.Design` in `Homeoffice.API` sein?](#warum-muss-microsoftentityframeworkcoredesign-in-homeofficeapi-sein)
    * [Die Service-Schicht und die Authentifizierung](#die-service-schicht-und-die-authentifizierung)
       + [Was ist ein JWT (JSON Web Token)?](#was-ist-ein-jwt-json-web-token)
@@ -58,8 +58,17 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
       + [2\. Guards: Die Türsteher der Anwendung](#2-guards-die-türsteher-der-anwendung)
       + [3\. Interceptors: Die Poststelle der Anwendung](#3-interceptors-die-poststelle-der-anwendung)
       + [4\. Routing: Der Wegweiser der Anwendung](#4-routing-der-wegweiser-der-anwendung)
+- [Dokumentation: Token-Refresh-Prozess (Frontend)](#dokumentation-token-refresh-prozess-frontend)
+   * [1. Warum ist der Refresh-Token-Prozess wichtig?](#1-warum-ist-der-refresh-token-prozess-wichtig)
+   * [2. Wie funktioniert der Prozess in unserer App?](#2-wie-funktioniert-der-prozess-in-unserer-app)
+   * [3. Implementierung im Detail](#3-implementierung-im-detail)
+      + [`jwtInterceptor`](#jwtinterceptor)
+      + [`TokenService`](#tokenservice)
+      + [`refreshToken()` Methode (in `AuthService`)](#refreshtoken-methode-in-authservice)
+      + [Diagramm: Sichere JWT-Refresh-Token-Ablaufsteuerung mit paralleler Anfrageverarbeitung](#diagramm-sichere-jwt-refresh-token-ablaufsteuerung-mit-paralleler-anfrageverarbeitung)
 
 <!-- TOC end -->
+
 
 ## Motivation
 Dieses Projekt hat mich von Anfang an begeistert. Die Idee, eine praxisnahe und vollständige Anwendung mit einem modernen Tech-Stack zu entwickeln, war für mich der ideale Anlass, meine Fähigkeiten gezielt einzusetzen und weiterzuentwickeln. Mein Ziel war es, eine Lösung zu schaffen, die stabil, gut wartbar und sicher ist – genau so, wie man es auch in einem professionellen Entwicklungsteam erwarten würde.
@@ -1879,3 +1888,10 @@ Diese Methode hat eine sehr spezifische und einfache Aufgabe: Sie führt die eig
 ```
 
 </details>
+
+### Diagramm: Sichere JWT-Refresh-Token-Ablaufsteuerung mit paralleler Anfrageverarbeitung
+
+Dieses Diagramm veranschaulicht den sicheren end-to-end Aktualisierungstoken-Mechanismus, der zeigt, wie ein Interceptor mehrere gleichzeitige API-Anfragen mit abgelaufenen Token durch eine zentralisierte Token-Aktualisierung und automatische Wiederholung verwaltet.
+
+![refresh-token](https://github.com/user-attachments/assets/87c7420c-45d2-4437-9cb7-bf3e125e1b61)
+
