@@ -1643,3 +1643,239 @@ export const routes: Routes = [
   * **Lazy Loading (`loadComponent`):** Dies ist eine entscheidende Performance-Optimierung. Der Code für eine Seite (z.B. die `OverviewComponent`) wird erst dann aus dem Netz geladen, wenn der Benutzer sie wirklich besucht. Das macht die Anwendung beim ersten Laden viel schneller.
   * **Geschützte Routen (`canActivate`):** Die Routen `/homeoffice` und `/overview` sind mit unserem `authGuard` versehen, was den Zugriff für nicht eingeloggte Benutzer verhindert.
   * **Weiterleitungen (`redirectTo`):** Sorgen für ein gutes Benutzererlebnis, indem sie den Benutzer immer auf eine gültige Seite leiten, auch wenn er eine falsche URL eingibt.
+
+
+Absolut. Hier ist ein Entwurf für die Dokumentation des Token-Refresh-Prozesses, geschrieben in einfachem Deutsch und aus deiner Perspektive, bereit für dein Git-Repository.
+
+---
+
+# Dokumentation: Token-Refresh-Prozess (Frontend)
+
+In diesem Dokument erkläre ich, wie der automatische Refresh-Prozess für Authentifizierungs-Tokens in unserer Frontend-Anwendung funktioniert. Das Ziel ist es, eine sichere und benutzerfreundliche Erfahrung zu gewährleisten.
+
+## 1. Warum ist der Refresh-Token-Prozess wichtig?
+
+Für die Sicherheit unserer Anwendung verwenden wir kurzlebige **Access Tokens**. Diese Tokens sind wie ein temporärer Schlüssel, der dem Benutzer für eine kurze Zeit (z. B. 15 Minuten) Zugriff auf die API gibt.
+
+**Das Problem:** Ohne einen automatischen Prozess müsste sich der Benutzer alle 15 Minuten neu anmelden. Das ist eine sehr schlechte Benutzererfahrung (User Experience).
+
+**Die Lösung:** Wir verwenden einen **Refresh Token**. Dies ist ein langlebiger Schlüssel, der sicher als `HttpOnly`-Cookie im Browser gespeichert wird. Wenn der kurzlebige `Access Token` abläuft, können wir mit dem `Refresh Token` im Hintergrund einen neuen `Access Token` anfordern, ohne dass der Benutzer etwas davon merkt.
+
+Dieser Prozess bietet uns zwei Hauptvorteile:
+* **Sicherheit:** Die `Access Tokens`, die bei jeder API-Anfrage gesendet werden, sind nur für kurze Zeit gültig.
+* **Benutzerfreundlichkeit:** Der Benutzer bleibt angemeldet und kann die Anwendung ohne Unterbrechungen nutzen.
+
+## 2. Wie funktioniert der Prozess in unserer App?
+
+Der gesamte Prozess ist für den Benutzer unsichtbar. Er bemerkt höchstens eine geringfügig längere Ladezeit bei einer Anfrage. So funktioniert der Ablauf im Detail:
+
+1.  Die Anwendung sendet eine Anfrage an die API (z. B. um Profildaten zu laden) mit dem aktuellen `Access Token`.
+2.  Der Server stellt fest, dass der `Access Token` abgelaufen ist und sendet den HTTP-Status `401 Unauthorized` zurück.
+3.  Unser `jwtInterceptor` fängt diesen speziellen `401`-Fehler ab, anstatt ihn als Fehler in der App anzuzeigen.
+4.  Der Interceptor startet nun den "Token-Refresh-Prozess".
+5.  Er ruft die `refreshToken()`-Funktion auf, die eine Anfrage an den `/account/refresh-token`-Endpunkt sendet. Diese Anfrage enthält den `Refresh Token` (über das Cookie).
+6.  Der Server überprüft den `Refresh Token`. Wenn er gültig ist, erstellt der Server einen neuen `Access Token` und sendet ihn an die Anwendung zurück.
+7.  Die Anwendung speichert den neuen `Access Token`.
+8.  Der `jwtInterceptor` wiederholt nun die ursprünglich fehlgeschlagene Anfrage (z. B. das Laden der Profildaten), aber dieses Mal mit dem neuen, gültigen `Access Token`.
+9.  Die Anfrage ist erfolgreich und die Daten werden in der Anwendung angezeigt.
+
+## 3. Implementierung im Detail
+
+Drei Hauptkomponenten arbeiten zusammen, um diesen Prozess zu ermöglichen: `jwtInterceptor`, `TokenService` und die `refreshToken()`-Methode im `AuthService`.
+
+### `jwtInterceptor`
+
+Der `jwtInterceptor` ist eine Funktion, die **jede** ausgehende HTTP-Anfrage abfängt, bevor sie an den Server gesendet wird. Er hat zwei Hauptaufgaben:
+
+1.  **Token hinzufügen:** Er fügt den aktuellen `Access Token` zum `Authorization`-Header jeder Anfrage hinzu.
+    * **Ausnahmen:** Anfragen an `/account/login` und `/account/refresh-token` werden ignoriert. Das ist wichtig, weil wir beim Login noch keinen Token haben und für den Refresh-Prozess keinen (abgelaufenen) Token senden wollen.
+2.  **Fehler behandeln:** Er verwendet `catchError`, um die Antworten vom Server zu überwachen. Wenn ein `401`-Fehler auftritt, startet er die Funktion `handleTokenExpiration`, die den gesamten Refresh-Logik steuert.
+
+<details>
+<summary><b>Code: jwt-interceptor.ts</b></summary>
+<br>
+
+```typescript
+import { HttpErrorResponse, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
+import { AuthService } from '../services/auth.service';
+import { inject } from '@angular/core';
+import { TokenService } from '../services/token.service';
+import { catchError, filter, switchMap, take, throwError } from 'rxjs';
+
+export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
+  const authService = inject(AuthService);
+  const tokenService = inject(TokenService);
+
+  // Skip token handling for auth endpoints
+  if (req.url.includes('/account/login') ||
+    req.url.includes('/account/refresh-token')) {
+    return next(req);
+  }
+
+  const token = authService.currentUser()?.token;
+  if (token) {
+    req = req.clone({
+      setHeaders: { Authorization: `Bearer ${token}` }
+    });
+  }
+
+  return next(req).pipe(
+    catchError((error: HttpErrorResponse) => {
+      if (error.status === 401 && authService.isLoggedIn()) {
+        return handleTokenExpiration(req, next, authService, tokenService);
+      }
+      return throwError(() => error);
+    })
+  );
+};
+
+function handleTokenExpiration(
+  req: HttpRequest<any>,
+  next: HttpHandlerFn,
+  authService: AuthService,
+  tokenService: TokenService
+) {
+  if (tokenService.isRefreshing()) {
+    return tokenService.getRefreshTokenSubject().pipe(
+      filter(token => token !== null),
+      take(1),
+      switchMap(token => {
+        req = req.clone({
+          setHeaders: { Authorization: `Bearer ${token}` }
+        });
+        return next(req);
+      })
+    );
+  }
+
+  tokenService.setRefreshing(true);
+  tokenService.setNewToken(null);
+
+  return authService.refreshToken().pipe(
+    switchMap(newToken => {
+      tokenService.setRefreshing(false);
+      tokenService.setNewToken(newToken);
+
+      req = req.clone({
+        setHeaders: { Authorization: `Bearer ${newToken}` }
+      });
+      return next(req);
+    }),
+    catchError(error => {
+      tokenService.setRefreshing(false);
+      authService.logout();
+      return throwError(() => error);
+    })
+  );
+}
+
+```
+
+</details>
+
+### `TokenService`
+
+Der `TokenService` ist der **Manager** oder "Verkehrspolizist" des Refresh-Prozesses. Sein Hauptzweck ist die Lösung eines Problems, das als **Race Condition** bekannt ist.
+
+**Das Problem (Race Condition):** Was passiert, wenn mehrere API-Anfragen gleichzeitig gesendet werden (z. B. auf einem Dashboard) und der Token genau in diesem Moment abläuft? Alle Anfragen würden gleichzeitig fehlschlagen und jede würde versuchen, einen neuen Token anzufordern. Das ist ineffizient.
+
+**Die Lösung durch `TokenService`:**
+Der Service stellt sicher, dass **nur eine einzige** Anfrage den Token erneuert, während die anderen warten. Er verwendet dafür zwei Werkzeuge:
+
+* `refreshingToken`: Ein einfacher `boolean`-Flag. Wenn er `true` ist, bedeutet das: "Ein Refresh-Prozess läuft bereits, bitte warten." Das verhindert mehrfache Anfragen an den `/refresh-token`-Endpunkt.
+* `refreshTokenSubject`: Dies ist ein `BehaviorSubject` von RxJS. Man kann es sich als einen **Kanal** oder einen **Warteraum** vorstellen. Anfragen, die fehlschlagen, während bereits ein Refresh läuft, "warten" in diesem Kanal. Sobald der neue Token verfügbar ist, wird er über diesen Kanal an alle wartenden Anfragen gesendet.
+
+Dadurch wird der Prozess sauber und effizient. Die erste fehlgeschlagene Anfrage erledigt die Arbeit, und alle anderen Anfragen warten einfach auf das Ergebnis.
+
+<details>
+<summary><b>Code: token.service.ts</b></summary>
+<br>
+
+```typescript
+
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class TokenService {
+  private refreshingToken = false;
+  private refreshTokenSubject = new BehaviorSubject<string | null>(null);
+
+  isRefreshing(): boolean {
+    return this.refreshingToken;
+  }
+
+  setRefreshing(value: boolean): void {
+    this.refreshingToken = value;
+  }
+
+  getRefreshTokenSubject(): Observable<string | null> {
+    return this.refreshTokenSubject.asObservable();
+  }
+
+  setNewToken(token: string | null): void {
+    this.refreshTokenSubject.next(token);
+  }
+}
+
+```
+
+</details>
+
+### `refreshToken()` Methode (in `AuthService`)
+
+Diese Methode hat eine sehr spezifische und einfache Aufgabe: Sie führt die eigentliche HTTP-Anfrage zur Erneuerung des Tokens durch.
+
+* Sie sendet eine `POST`-Anfrage an den Endpunkt `/account/refresh-token`.
+* Sie verwendet die Option `withCredentials: true`. Das ist extrem wichtig, denn es weist den Browser an, Cookies (insbesondere unser sicheres `HttpOnly`-Cookie mit dem `Refresh Token`) mit der Anfrage zu senden.
+* Bei Erfolg:
+    * Extrahiert sie den neuen `token` aus der Antwort des Servers.
+    * Aktualisiert sie die Benutzerdaten in der Anwendung mit dem neuen Token.
+    * Gibt sie den neuen Token an den Interceptor zurück, damit dieser die ursprüngliche Anfrage wiederholen kann.
+* Bei einem Fehler (z. B. wenn auch der `Refresh Token` abgelaufen ist):
+    * Loggt sie den Benutzer aus (`authService.logout()`), da die Sitzung endgültig ungültig ist.
+
+
+<details>
+<summary><b>Code: auth.service.ts</b></summary>
+<br>
+
+```typescript
+
+   // The refresh token is in an HttpOnly cookie, so we send an empty body.
+  // The backend will return the new access token as json object.
+  refreshToken(): Observable<string> {
+    return this.http.post<{ token: string }>(
+      `${this.apiUrl}/refresh-token`,
+      {},
+      { withCredentials: true }
+    ).pipe(
+      map(response => response.token), // Extract token from response object
+      tap(newToken => {
+        const currentUser = this.currentUser();
+        if (currentUser) {
+          const updatedUser: ILoginResponse = {
+            ...currentUser,
+            token: newToken
+          };
+          this.storeUserData(updatedUser);
+        }
+      }),
+      catchError(error => {
+        console.error('Refresh token failed:', error);
+        this.logout();
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private storeUserData(response: ILoginResponse): void {
+    this.storageService.set(LOCAL_STORAGE_KEYS.AUTH_TOKEN, response);
+    this.currentUser.set(response);
+  }
+
+```
+
+</details>
