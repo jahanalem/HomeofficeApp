@@ -1,5 +1,7 @@
 ﻿using Homeoffice.Contracts.Dtos;
 using Homeoffice.Contracts.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -9,10 +11,21 @@ namespace Homeoffice.API.Controllers
     public class AccountController : BaseApiController
     {
         private readonly IAuthService _authService;
+        private readonly ITokenService _tokenService;
 
-        public AccountController(IAuthService authService)
+        public AccountController(IAuthService authService, ITokenService tokenService)
         {
             _authService = authService;
+            _tokenService = tokenService;
+        }
+
+        [HttpPost("logout")]
+        [Authorize]
+        public IActionResult Logout()
+        {
+            _tokenService.DeleteRefreshTokenCookie();
+            HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            return NoContent();
         }
 
         // POST /api/account/login
@@ -29,6 +42,19 @@ namespace Homeoffice.API.Controllers
             }
 
             return Ok(loginResponse);
+        }
+
+        [HttpPost("refresh-token")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RefreshToken()
+        {
+            string? newAccessToken = await _authService.RefreshTokenAsync();
+            if (string.IsNullOrEmpty(newAccessToken))
+            {
+                return Unauthorized();
+            }
+
+            return Ok(new { token = newAccessToken });
         }
 
         // GET /api/account/currentuser

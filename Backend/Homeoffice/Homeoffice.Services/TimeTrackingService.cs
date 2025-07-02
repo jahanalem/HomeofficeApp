@@ -20,14 +20,6 @@ namespace Homeoffice.Services
         }
         public async Task<HomeOfficeEntryDto> StartTrackingAsync(string userId, string? description = null)
         {
-            var isAlreadyTracking = await _context.HomeOfficeEntries
-                .AnyAsync(e => e.UserId == userId && e.EndTime == null);
-
-            if (isAlreadyTracking)
-            {
-                throw new InvalidOperationException("User is already tracking time.");
-            }
-
             var newEntry = new HomeOfficeEntry
             {
                 UserId = userId,

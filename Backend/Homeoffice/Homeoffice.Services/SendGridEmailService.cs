@@ -24,7 +24,7 @@ namespace Homeoffice.Services
             var toEmail = new EmailAddress(_sendGridSettings.HrEmailAddress);
 
             var subject = $"Home Office Zeit für {homeOfficeEntry.User.UserName}";
-            
+
             var body = $"""
             <!DOCTYPE html>
             <html lang="de">

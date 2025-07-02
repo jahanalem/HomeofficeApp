@@ -6,7 +6,7 @@ namespace Homeoffice.Models.Entities.Identity
     {
         public DateTimeOffset? CreatedDate { get; set; }
         public DateTimeOffset? ModifiedDate { get; set; }
-
+        public virtual ICollection<ApplicationUserToken> Tokens { get; set; }
         public virtual ICollection<HomeOfficeEntry> HomeOfficeEntries { get; set; } = new List<HomeOfficeEntry>();
     }
 }

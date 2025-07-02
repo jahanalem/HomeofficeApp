@@ -17,6 +17,7 @@ try
 
     builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
     builder.Services.Configure<SendGridSettings>(builder.Configuration.GetSection("EmailSenderProvider:SendGrid"));
+    builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
     // Database context configurieren
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -27,7 +28,6 @@ try
 #pragma warning disable IL2026
     builder.Services.AddIdentity<User, IdentityRole>(options =>
     {
-        // Hier können Sie Passwort-Regeln etc. anpassen
         options.Password.RequireDigit = true;
         options.Password.RequiredLength = 6;
         options.Password.RequireNonAlphanumeric = false;
@@ -52,7 +52,9 @@ try
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateIssuer = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            ValidateAudience = true
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
         };
     });
 
@@ -74,9 +76,10 @@ try
     {
         options.AddPolicy("CorsPolicy", policy =>
         {
-            policy.WithOrigins("http://localhost:4300")
+            policy.WithOrigins("http://localhost:4200")
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         });
     });
 

@@ -4,6 +4,10 @@ namespace Homeoffice.Contracts.Services
 {
     public interface ITokenService
     {
-        string CreateToken(User user);
+        string CreateAccessToken(User user);
+        Task<string> CreateRefreshTokenAsync(User user);
+        string GenerateRefreshToken();
+        void SetRefreshTokenCookie(string refreshToken);
+        void DeleteRefreshTokenCookie();
     }
 }

@@ -5,5 +5,6 @@ namespace Homeoffice.Contracts.Services
     public interface IAuthService
     {
         Task<LoginResponseDto?> LoginAsync(LoginRequestDto loginRequest);
+        Task<string?> RefreshTokenAsync();
     }
 }
