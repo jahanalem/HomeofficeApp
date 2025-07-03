@@ -58,6 +58,20 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
       + [2\. Guards: Die Türsteher der Anwendung](#2-guards-die-türsteher-der-anwendung)
       + [3\. Interceptors: Die Poststelle der Anwendung](#3-interceptors-die-poststelle-der-anwendung)
       + [4\. Routing: Der Wegweiser der Anwendung](#4-routing-der-wegweiser-der-anwendung)
+- [Dokumentation: Token-Refresh-Prozess (Frontend)](#dokumentation-token-refresh-prozess-frontend)
+   * [1. Warum ist der Refresh-Token-Prozess wichtig?](#1-warum-ist-der-refresh-token-prozess-wichtig)
+   * [2. Wie funktioniert der Prozess in unserer App?](#2-wie-funktioniert-der-prozess-in-unserer-app)
+   * [3. Implementierung im Detail](#3-implementierung-im-detail)
+      + [`jwtInterceptor`](#jwtinterceptor)
+      + [`TokenService`](#tokenservice)
+      + [`refreshToken()` Methode (in `AuthService`)](#refreshtoken-methode-in-authservice)
+      + [Diagramm: Sichere JWT-Refresh-Token-Ablaufsteuerung mit paralleler Anfrageverarbeitung](#diagramm-sichere-jwt-refresh-token-ablaufsteuerung-mit-paralleler-anfrageverarbeitung)
+- [Die Refresh-Token-Logik im Backend](#die-refresh-token-logik-im-backend)
+   * [Sichere Speicherung des Refresh Tokens](#sichere-speicherung-des-refresh-tokens)
+   * [Das Refresh-Token-Cookie: Optionen im Detail](#das-refresh-token-cookie-optionen-im-detail)
+   * [Zusammenspiel mit dem Frontend: CORS und Credentials](#zusammenspiel-mit-dem-frontend-cors-und-credentials)
+   * [Der Refresh-Prozess: Der `/refresh-token`-Endpunkt](#der-refresh-prozess-der-refresh-token-endpunkt)
+   * [Konfiguration der Token-Validierung im Detail](#konfiguration-der-token-validierung-im-detail)
 
 <!-- TOC end -->
 
@@ -1643,3 +1657,371 @@ export const routes: Routes = [
   * **Lazy Loading (`loadComponent`):** Dies ist eine entscheidende Performance-Optimierung. Der Code für eine Seite (z.B. die `OverviewComponent`) wird erst dann aus dem Netz geladen, wenn der Benutzer sie wirklich besucht. Das macht die Anwendung beim ersten Laden viel schneller.
   * **Geschützte Routen (`canActivate`):** Die Routen `/homeoffice` und `/overview` sind mit unserem `authGuard` versehen, was den Zugriff für nicht eingeloggte Benutzer verhindert.
   * **Weiterleitungen (`redirectTo`):** Sorgen für ein gutes Benutzererlebnis, indem sie den Benutzer immer auf eine gültige Seite leiten, auch wenn er eine falsche URL eingibt.
+
+
+Absolut. Hier ist ein Entwurf für die Dokumentation des Token-Refresh-Prozesses, geschrieben in einfachem Deutsch und aus deiner Perspektive, bereit für dein Git-Repository.
+
+---
+
+# Dokumentation: Token-Refresh-Prozess (Frontend)
+
+In diesem Dokument erkläre ich, wie der automatische Refresh-Prozess für Authentifizierungs-Tokens in unserer Frontend-Anwendung funktioniert. Das Ziel ist es, eine sichere und benutzerfreundliche Erfahrung zu gewährleisten.
+
+## 1. Warum ist der Refresh-Token-Prozess wichtig?
+
+Für die Sicherheit unserer Anwendung verwenden wir kurzlebige **Access Tokens**. Diese Tokens sind wie ein temporärer Schlüssel, der dem Benutzer für eine kurze Zeit (z. B. 15 Minuten) Zugriff auf die API gibt.
+
+**Das Problem:** Ohne einen automatischen Prozess müsste sich der Benutzer alle 15 Minuten neu anmelden. Das ist eine sehr schlechte Benutzererfahrung (User Experience).
+
+**Die Lösung:** Wir verwenden einen **Refresh Token**. Dies ist ein langlebiger Schlüssel, der sicher als `HttpOnly`-Cookie im Browser gespeichert wird. Wenn der kurzlebige `Access Token` abläuft, können wir mit dem `Refresh Token` im Hintergrund einen neuen `Access Token` anfordern, ohne dass der Benutzer etwas davon merkt.
+
+Dieser Prozess bietet uns zwei Hauptvorteile:
+* **Sicherheit:** Die `Access Tokens`, die bei jeder API-Anfrage gesendet werden, sind nur für kurze Zeit gültig.
+* **Benutzerfreundlichkeit:** Der Benutzer bleibt angemeldet und kann die Anwendung ohne Unterbrechungen nutzen.
+
+## 2. Wie funktioniert der Prozess in unserer App?
+
+Der gesamte Prozess ist für den Benutzer unsichtbar. Er bemerkt höchstens eine geringfügig längere Ladezeit bei einer Anfrage. So funktioniert der Ablauf im Detail:
+
+1.  Die Anwendung sendet eine Anfrage an die API (z. B. um Profildaten zu laden) mit dem aktuellen `Access Token`.
+2.  Der Server stellt fest, dass der `Access Token` abgelaufen ist und sendet den HTTP-Status `401 Unauthorized` zurück.
+3.  Unser `jwtInterceptor` fängt diesen speziellen `401`-Fehler ab, anstatt ihn als Fehler in der App anzuzeigen.
+4.  Der Interceptor startet nun den "Token-Refresh-Prozess".
+5.  Er ruft die `refreshToken()`-Funktion auf, die eine Anfrage an den `/account/refresh-token`-Endpunkt sendet. Diese Anfrage enthält den `Refresh Token` (über das Cookie).
+6.  Der Server überprüft den `Refresh Token`. Wenn er gültig ist, erstellt der Server einen neuen `Access Token` und sendet ihn an die Anwendung zurück.
+7.  Die Anwendung speichert den neuen `Access Token`.
+8.  Der `jwtInterceptor` wiederholt nun die ursprünglich fehlgeschlagene Anfrage (z. B. das Laden der Profildaten), aber dieses Mal mit dem neuen, gültigen `Access Token`.
+9.  Die Anfrage ist erfolgreich und die Daten werden in der Anwendung angezeigt.
+
+## 3. Implementierung im Detail
+
+Drei Hauptkomponenten arbeiten zusammen, um diesen Prozess zu ermöglichen: `jwtInterceptor`, `TokenService` und die `refreshToken()`-Methode im `AuthService`.
+
+### `jwtInterceptor`
+
+Der `jwtInterceptor` ist eine Funktion, die **jede** ausgehende HTTP-Anfrage abfängt, bevor sie an den Server gesendet wird. Er hat zwei Hauptaufgaben:
+
+1.  **Token hinzufügen:** Er fügt den aktuellen `Access Token` zum `Authorization`-Header jeder Anfrage hinzu.
+    * **Ausnahmen:** Anfragen an `/account/login` und `/account/refresh-token` werden ignoriert. Das ist wichtig, weil wir beim Login noch keinen Token haben und für den Refresh-Prozess keinen (abgelaufenen) Token senden wollen.
+2.  **Fehler behandeln:** Er verwendet `catchError`, um die Antworten vom Server zu überwachen. Wenn ein `401`-Fehler auftritt, startet er die Funktion `handleTokenExpiration`, die den gesamten Refresh-Logik steuert.
+
+<details>
+<summary><b>Code: jwt-interceptor.ts</b></summary>
+<br>
+
+```typescript
+import { HttpErrorResponse, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
+import { AuthService } from '../services/auth.service';
+import { inject } from '@angular/core';
+import { TokenService } from '../services/token.service';
+import { catchError, filter, switchMap, take, throwError } from 'rxjs';
+
+export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
+  const authService = inject(AuthService);
+  const tokenService = inject(TokenService);
+
+  // Skip token handling for auth endpoints
+  if (req.url.includes('/account/login') ||
+    req.url.includes('/account/refresh-token')) {
+    return next(req);
+  }
+
+  const token = authService.currentUser()?.token;
+  if (token) {
+    req = req.clone({
+      setHeaders: { Authorization: `Bearer ${token}` }
+    });
+  }
+
+  return next(req).pipe(
+    catchError((error: HttpErrorResponse) => {
+      if (error.status === 401 && authService.isLoggedIn()) {
+        return handleTokenExpiration(req, next, authService, tokenService);
+      }
+      return throwError(() => error);
+    })
+  );
+};
+
+function handleTokenExpiration(
+  req: HttpRequest<any>,
+  next: HttpHandlerFn,
+  authService: AuthService,
+  tokenService: TokenService
+) {
+  if (tokenService.isRefreshing()) {
+    return tokenService.getRefreshTokenSubject().pipe(
+      filter(token => token !== null),
+      take(1),
+      switchMap(token => {
+        req = req.clone({
+          setHeaders: { Authorization: `Bearer ${token}` }
+        });
+        return next(req);
+      })
+    );
+  }
+
+  tokenService.setRefreshing(true);
+  tokenService.setNewToken(null);
+
+  return authService.refreshToken().pipe(
+    switchMap(newToken => {
+      tokenService.setRefreshing(false);
+      tokenService.setNewToken(newToken);
+
+      req = req.clone({
+        setHeaders: { Authorization: `Bearer ${newToken}` }
+      });
+      return next(req);
+    }),
+    catchError(error => {
+      tokenService.setRefreshing(false);
+      authService.logout();
+      return throwError(() => error);
+    })
+  );
+}
+
+```
+
+</details>
+
+### `TokenService`
+
+Der `TokenService` ist der **Manager** oder "Verkehrspolizist" des Refresh-Prozesses. Sein Hauptzweck ist die Lösung eines Problems, das als **Race Condition** bekannt ist.
+
+**Das Problem (Race Condition):** Was passiert, wenn mehrere API-Anfragen gleichzeitig gesendet werden (z. B. auf einem Dashboard) und der Token genau in diesem Moment abläuft? Alle Anfragen würden gleichzeitig fehlschlagen und jede würde versuchen, einen neuen Token anzufordern. Das ist ineffizient.
+
+**Die Lösung durch `TokenService`:**
+Der Service stellt sicher, dass **nur eine einzige** Anfrage den Token erneuert, während die anderen warten. Er verwendet dafür zwei Werkzeuge:
+
+* `refreshingToken`: Ein einfacher `boolean`-Flag. Wenn er `true` ist, bedeutet das: "Ein Refresh-Prozess läuft bereits, bitte warten." Das verhindert mehrfache Anfragen an den `/refresh-token`-Endpunkt.
+* `refreshTokenSubject`: Dies ist ein `BehaviorSubject` von RxJS. Man kann es sich als einen **Kanal** oder einen **Warteraum** vorstellen. Anfragen, die fehlschlagen, während bereits ein Refresh läuft, "warten" in diesem Kanal. Sobald der neue Token verfügbar ist, wird er über diesen Kanal an alle wartenden Anfragen gesendet.
+
+Dadurch wird der Prozess sauber und effizient. Die erste fehlgeschlagene Anfrage erledigt die Arbeit, und alle anderen Anfragen warten einfach auf das Ergebnis.
+
+<details>
+<summary><b>Code: token.service.ts</b></summary>
+<br>
+
+```typescript
+
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class TokenService {
+  private refreshingToken = false;
+  private refreshTokenSubject = new BehaviorSubject<string | null>(null);
+
+  isRefreshing(): boolean {
+    return this.refreshingToken;
+  }
+
+  setRefreshing(value: boolean): void {
+    this.refreshingToken = value;
+  }
+
+  getRefreshTokenSubject(): Observable<string | null> {
+    return this.refreshTokenSubject.asObservable();
+  }
+
+  setNewToken(token: string | null): void {
+    this.refreshTokenSubject.next(token);
+  }
+}
+
+```
+
+</details>
+
+### `refreshToken()` Methode (in `AuthService`)
+
+Diese Methode hat eine sehr spezifische und einfache Aufgabe: Sie führt die eigentliche HTTP-Anfrage zur Erneuerung des Tokens durch.
+
+* Sie sendet eine `POST`-Anfrage an den Endpunkt `/account/refresh-token`.
+* Sie verwendet die Option `withCredentials: true`. Das ist extrem wichtig, denn es weist den Browser an, Cookies (insbesondere unser sicheres `HttpOnly`-Cookie mit dem `Refresh Token`) mit der Anfrage zu senden.
+* Bei Erfolg:
+    * Extrahiert sie den neuen `token` aus der Antwort des Servers.
+    * Aktualisiert sie die Benutzerdaten in der Anwendung mit dem neuen Token.
+    * Gibt sie den neuen Token an den Interceptor zurück, damit dieser die ursprüngliche Anfrage wiederholen kann.
+* Bei einem Fehler (z. B. wenn auch der `Refresh Token` abgelaufen ist):
+    * Loggt sie den Benutzer aus (`authService.logout()`), da die Sitzung endgültig ungültig ist.
+
+
+<details>
+<summary><b>Code: auth.service.ts</b></summary>
+<br>
+
+```typescript
+
+   // The refresh token is in an HttpOnly cookie, so we send an empty body.
+  // The backend will return the new access token as json object.
+  refreshToken(): Observable<string> {
+    return this.http.post<{ token: string }>(
+      `${this.apiUrl}/refresh-token`,
+      {},
+      { withCredentials: true }
+    ).pipe(
+      map(response => response.token), // Extract token from response object
+      tap(newToken => {
+        const currentUser = this.currentUser();
+        if (currentUser) {
+          const updatedUser: ILoginResponse = {
+            ...currentUser,
+            token: newToken
+          };
+          this.storeUserData(updatedUser);
+        }
+      }),
+      catchError(error => {
+        console.error('Refresh token failed:', error);
+        this.logout();
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private storeUserData(response: ILoginResponse): void {
+    this.storageService.set(LOCAL_STORAGE_KEYS.AUTH_TOKEN, response);
+    this.currentUser.set(response);
+  }
+
+```
+
+</details>
+
+### Diagramm: Sichere JWT-Refresh-Token-Ablaufsteuerung mit paralleler Anfrageverarbeitung
+
+Dieses Diagramm veranschaulicht den sicheren end-to-end Aktualisierungstoken-Mechanismus, der zeigt, wie ein Interceptor mehrere gleichzeitige API-Anfragen mit abgelaufenen Token durch eine zentralisierte Token-Aktualisierung und automatische Wiederholung verwaltet.
+
+![refresh-token](https://github.com/user-attachments/assets/87c7420c-45d2-4437-9cb7-bf3e125e1b61)
+
+
+-----
+
+# Die Refresh-Token-Logik im Backend
+
+Während der `Access Token` zustandslos ist und im Frontend gespeichert wird, erfordert der `Refresh Token` eine robustere, sicherere Handhabung im Backend. Er wird sowohl in der Datenbank gespeichert als auch in einem sicheren Cookie an den Browser gesendet.
+
+## Sichere Speicherung des Refresh Tokens
+
+Die Strategie für den Refresh Token basiert auf zwei Speicherorten:
+
+1.  **In der Datenbank:** Ein Verweis auf den Refresh Token wird in der Datenbank gespeichert. Hierfür wurde die Standard-Tabelle `AspNetUserTokens` von ASP.NET Core Identity erweitert. Dies erlaubt uns, serverseitig zu überprüfen, ob ein vom Client gesendeter Token gültig ist und zu welchem Benutzer er gehört.
+2.  **Im Browser-Cookie:** Der eigentliche Wert des Refresh Tokens wird in einem `HttpOnly`-Cookie gespeichert. Dies ist der sicherste Weg, um ihn im Browser aufzubewahren, da er so für clientseitiges JavaScript unzugänglich ist.
+
+## Das Refresh-Token-Cookie: Optionen im Detail
+
+Beim Setzen des Cookies im `TokenService` werden spezifische `CookieOptions` verwendet, um maximale Sicherheit und Funktionalität zu gewährleisten.
+
+<details>
+<summary><b>Code: SetRefreshTokenCookie in TokenService.cs</b></summary>
+<br>
+
+```csharp
+public void SetRefreshTokenCookie(string refreshToken)
+{
+    if (_httpContextAccessor.HttpContext is not null)
+    {
+        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !isDevelopment,
+            SameSite = isDevelopment ? SameSiteMode.Lax : SameSiteMode.Strict,
+            Expires = DateTime.UtcNow.AddDays(30),
+            Path = "/"
+        };
+
+        _httpContextAccessor.HttpContext.Response.Cookies.Append(
+            TokenConstants.RefreshToken,
+            refreshToken,
+            cookieOptions);
+    }
+}
+```
+</details>
+
+Hier ist die Erklärung der einzelnen Optionen:
+
+  * **`HttpOnly = true`**: Dies ist eine **entscheidende Sicherheitsmaßnahme**. Sie verhindert, dass auf das Cookie über JavaScript (`document.cookie`) zugegriffen werden kann. Dadurch wird das Risiko von Cross-Site-Scripting (XSS)-Angriffen, bei denen ein Angreifer versucht, den Token zu stehlen, erheblich reduziert.
+
+  * **`Secure = !isDevelopment`**: Diese Einstellung erzwingt, dass das Cookie nur über eine sichere **HTTPS**-Verbindung gesendet wird. Für die lokale Entwicklung (`isDevelopment = true`) wird diese Regel auf `false` gesetzt, damit wir die Anwendung auch ohne konfiguriertes SSL/TLS unter `http://localhost` testen können. In der Produktion ist `Secure = true` ein Muss.
+
+  * **`SameSite`**: Dies ist eine weitere wichtige Sicherheitsfunktion zum Schutz vor Cross-Site Request Forgery (CSRF)-Angriffen. Sie kontrolliert, ob ein Cookie mit Anfragen gesendet wird, die von anderen Domains initiiert werden.
+
+      * **`SameSiteMode.Strict`**: Die strengste Einstellung. Der Browser sendet das Cookie **nur**, wenn die Anfrage von exakt derselben Domain stammt, die das Cookie gesetzt hat. Dies ist die sicherste Option für die Produktion.
+      * **`SameSiteMode.Lax`**: Ein guter Kompromiss. Das Cookie wird bei Anfragen von derselben Domain und auch bei Top-Level-Navigationen (z. B. wenn ein Benutzer auf einen Link zu Ihrer Seite von einer externen Seite klickt) gesendet. Wir verwenden dies in der Entwicklung, da Frontend und Backend oft auf unterschiedlichen Ports laufen (z. B. `localhost:4200` und `localhost:5001`), was als "cross-site" gelten kann.
+
+  * **`Expires`**: Legt die Lebensdauer des Cookies fest. Hier setzen wir sie auf 30 Tage. Nach diesem Datum löscht der Browser das Cookie automatisch.
+
+  * **`Path = "/"`**: Stellt sicher, dass das Cookie für alle Pfade auf der Domain verfügbar ist (z. B. `/api/account`, `/api/timetracking` etc.).
+
+## Zusammenspiel mit dem Frontend: CORS und Credentials
+
+Damit der Browser das Refresh-Token-Cookie überhaupt an das Backend senden darf, muss die CORS-Konfiguration dies explizit erlauben.
+
+```csharp
+// CORS-Policy for the Angular frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // <-- Dieser Teil ist entscheidend
+    });
+});
+```
+
+**Warum ist `.AllowCredentials()` notwendig?**
+Standardmäßig verbieten Browser aus Sicherheitsgründen das Senden von "Credentials" (wie Cookies oder Authentifizierungs-Headern) bei Cross-Origin-Anfragen. Da unser Angular-Frontend auf `localhost:4200` und unser Backend auf einem anderen Port läuft, handelt es sich um eine Cross-Origin-Anfrage. Die Methode **`.AllowCredentials()`** signalisiert dem Browser, dass der Server Anfragen mit Credentials von der angegebenen Origin (`http://localhost:4200`) akzeptiert und ihnen vertraut. Ohne diese Erlaubnis würde der Browser das Cookie blockieren und der Refresh-Mechanismus würde fehlschlagen.
+
+## Der Refresh-Prozess: Der `/refresh-token`-Endpunkt
+
+Der `POST /api/account/refresh-token`-Endpunkt ist das Herzstück der serverseitigen Refresh-Logik.
+
+```csharp
+[HttpPost("refresh-token")]
+[AllowAnonymous]
+public async Task<IActionResult> RefreshToken()
+{
+    string? newAccessToken = await _authService.RefreshTokenAsync();
+    if (string.IsNullOrEmpty(newAccessToken))
+    {
+        return Unauthorized();
+    }
+
+    return Ok(new { token = newAccessToken });
+}
+```
+
+**Warum wird ein JSON-Objekt (`new { token = newAccessToken }`) zurückgegeben?**
+
+Obwohl wir nur den neuen Access Token senden, verpacken wir ihn in ein JSON-Objekt. Dies ist eine "Best Practice" für das API-Design aus zwei Gründen:
+
+1.  **Konsistenz:** Moderne APIs kommunizieren fast ausschließlich über JSON. Indem wir immer ein JSON-Objekt zurückgeben, halten wir uns an diesen Standard. Das Frontend erwartet ein JSON und kann es mit `response.json()` einfach verarbeiten.
+2.  **Erweiterbarkeit:** Wenn wir in Zukunft mehr Informationen zurückgeben möchten (z.B. die neue Ablaufzeit des Tokens), können wir das Objekt einfach erweitern (`new { token = "...", expires_in = 300 }`), ohne die bestehende Struktur zu ändern und ältere Clients zu beeinträchtigen. Würden wir nur reinen Text senden, wäre eine solche Erweiterung nicht möglich, ohne einen "Breaking Change" einzuführen.
+
+## Konfiguration der Token-Validierung im Detail
+
+In der `Program.cs` konfigurieren wir, wie das Backend die vom Frontend gesendeten `Access Tokens` validieren soll.
+
+```csharp
+options.TokenValidationParameters = new TokenValidationParameters
+{
+    // ... andere Validierungen
+    ValidateLifetime = true,
+    ClockSkew = TimeSpan.Zero,
+};
+```
+
+  * **`ValidateLifetime = true`**: Stellt sicher, dass das Ablaufdatum des Tokens (`Expires`) überprüft wird. Abgelaufene Tokens werden somit abgelehnt.
+  * **`ClockSkew = TimeSpan.Zero`**: Dies ist eine wichtige Sicherheitseinstellung. Standardmäßig erlaubt .NET eine Toleranz von 5 Minuten (`ClockSkew` von 5 Minuten), um kleine Zeitunterschiede zwischen dem Server, der den Token ausstellt, und dem Server, der ihn validiert, auszugleichen. Das bedeutet, ein Token wäre noch 5 Minuten nach seiner eigentlichen Ablaufzeit gültig. Indem wir **`TimeSpan.Zero`** setzen, entfernen wir diese Toleranz vollständig. Der Token wird in der exakten Sekunde ungültig, in der er abläuft. Dies erhöht die Sicherheit, da die Lebensdauer des Tokens präzise durchgesetzt wird.
+
