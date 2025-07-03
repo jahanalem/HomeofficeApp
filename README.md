@@ -4,7 +4,7 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
 
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
 
-- [Homeoffice Zeiterfassung – Ein Full-Stack-Projekt](#homeoffice-zeiterfassung-ein-full-stack-projekt)
+- [Homeoffice Zeiterfassung – Ein Full-Stack-Projekt](#homeoffice-zeiterfassung--ein-full-stack-projekt)
    * [Motivation](#motivation)
    * [Projektstruktur im Backend](#projektstruktur-im-backend)
          - [`Homeoffice.Models`](#homeofficemodels)
@@ -19,8 +19,8 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
          - [Wichtige Konzepte im `DbContext`](#wichtige-konzepte-im-dbcontext)
       + [Fluent API Konfigurationen](#fluent-api-konfigurationen)
    * [Datenbank-Migrationen](#datenbank-migrationen)
-         - [`dotnet ef migrations add Create_Database -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext -o Data/Migrations`](#dotnet-ef-migrations-add-create_database-p-homeofficedataaccess-s-homeofficeapi-c-applicationdbcontext-o-datamigrations)
-         - [`dotnet ef database update -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext`](#dotnet-ef-database-update-p-homeofficedataaccess-s-homeofficeapi-c-applicationdbcontext)
+         - [`dotnet ef migrations add Create_Database -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext -o Data/Migrations`](#dotnet-ef-migrations-add-create_database--p-homeofficedataaccess--s-homeofficeapi--c-applicationdbcontext--o-datamigrations)
+         - [`dotnet ef database update -p Homeoffice.DataAccess -s Homeoffice.API -c ApplicationDbContext`](#dotnet-ef-database-update--p-homeofficedataaccess--s-homeofficeapi--c-applicationdbcontext)
          - [Warum muss `Microsoft.EntityFrameworkCore.Design` in `Homeoffice.API` sein?](#warum-muss-microsoftentityframeworkcoredesign-in-homeofficeapi-sein)
    * [Die Service-Schicht und die Authentifizierung](#die-service-schicht-und-die-authentifizierung)
       + [Was ist ein JWT (JSON Web Token)?](#was-ist-ein-jwt-json-web-token)
@@ -66,9 +66,14 @@ In dieser README.md-Datei beschreibe ich die Entwicklung einer vollständigen Fu
       + [`TokenService`](#tokenservice)
       + [`refreshToken()` Methode (in `AuthService`)](#refreshtoken-methode-in-authservice)
       + [Diagramm: Sichere JWT-Refresh-Token-Ablaufsteuerung mit paralleler Anfrageverarbeitung](#diagramm-sichere-jwt-refresh-token-ablaufsteuerung-mit-paralleler-anfrageverarbeitung)
+- [Die Refresh-Token-Logik im Backend](#die-refresh-token-logik-im-backend)
+   * [Sichere Speicherung des Refresh Tokens](#sichere-speicherung-des-refresh-tokens)
+   * [Das Refresh-Token-Cookie: Optionen im Detail](#das-refresh-token-cookie-optionen-im-detail)
+   * [Zusammenspiel mit dem Frontend: CORS und Credentials](#zusammenspiel-mit-dem-frontend-cors-und-credentials)
+   * [Der Refresh-Prozess: Der `/refresh-token`-Endpunkt](#der-refresh-prozess-der-refresh-token-endpunkt)
+   * [Konfiguration der Token-Validierung im Detail](#konfiguration-der-token-validierung-im-detail)
 
 <!-- TOC end -->
-
 
 ## Motivation
 Dieses Projekt hat mich von Anfang an begeistert. Die Idee, eine praxisnahe und vollständige Anwendung mit einem modernen Tech-Stack zu entwickeln, war für mich der ideale Anlass, meine Fähigkeiten gezielt einzusetzen und weiterzuentwickeln. Mein Ziel war es, eine Lösung zu schaffen, die stabil, gut wartbar und sicher ist – genau so, wie man es auch in einem professionellen Entwicklungsteam erwarten würde.
@@ -1898,18 +1903,18 @@ Dieses Diagramm veranschaulicht den sicheren end-to-end Aktualisierungstoken-Mec
 
 -----
 
-## Die Refresh-Token-Logik im Backend
+# Die Refresh-Token-Logik im Backend
 
 Während der `Access Token` zustandslos ist und im Frontend gespeichert wird, erfordert der `Refresh Token` eine robustere, sicherere Handhabung im Backend. Er wird sowohl in der Datenbank gespeichert als auch in einem sicheren Cookie an den Browser gesendet.
 
-### Sichere Speicherung des Refresh Tokens
+## Sichere Speicherung des Refresh Tokens
 
 Die Strategie für den Refresh Token basiert auf zwei Speicherorten:
 
 1.  **In der Datenbank:** Ein Verweis auf den Refresh Token wird in der Datenbank gespeichert. Hierfür wurde die Standard-Tabelle `AspNetUserTokens` von ASP.NET Core Identity erweitert. Dies erlaubt uns, serverseitig zu überprüfen, ob ein vom Client gesendeter Token gültig ist und zu welchem Benutzer er gehört.
 2.  **Im Browser-Cookie:** Der eigentliche Wert des Refresh Tokens wird in einem `HttpOnly`-Cookie gespeichert. Dies ist der sicherste Weg, um ihn im Browser aufzubewahren, da er so für clientseitiges JavaScript unzugänglich ist.
 
-### Das Refresh-Token-Cookie: Optionen im Detail
+## Das Refresh-Token-Cookie: Optionen im Detail
 
 Beim Setzen des Cookies im `TokenService` werden spezifische `CookieOptions` verwendet, um maximale Sicherheit und Funktionalität zu gewährleisten.
 
@@ -1957,7 +1962,7 @@ Hier ist die Erklärung der einzelnen Optionen:
 
   * **`Path = "/"`**: Stellt sicher, dass das Cookie für alle Pfade auf der Domain verfügbar ist (z. B. `/api/account`, `/api/timetracking` etc.).
 
-### Zusammenspiel mit dem Frontend: CORS und Credentials
+## Zusammenspiel mit dem Frontend: CORS und Credentials
 
 Damit der Browser das Refresh-Token-Cookie überhaupt an das Backend senden darf, muss die CORS-Konfiguration dies explizit erlauben.
 
@@ -1978,7 +1983,7 @@ builder.Services.AddCors(options =>
 **Warum ist `.AllowCredentials()` notwendig?**
 Standardmäßig verbieten Browser aus Sicherheitsgründen das Senden von "Credentials" (wie Cookies oder Authentifizierungs-Headern) bei Cross-Origin-Anfragen. Da unser Angular-Frontend auf `localhost:4200` und unser Backend auf einem anderen Port läuft, handelt es sich um eine Cross-Origin-Anfrage. Die Methode **`.AllowCredentials()`** signalisiert dem Browser, dass der Server Anfragen mit Credentials von der angegebenen Origin (`http://localhost:4200`) akzeptiert und ihnen vertraut. Ohne diese Erlaubnis würde der Browser das Cookie blockieren und der Refresh-Mechanismus würde fehlschlagen.
 
-### Der Refresh-Prozess: Der `/refresh-token`-Endpunkt
+## Der Refresh-Prozess: Der `/refresh-token`-Endpunkt
 
 Der `POST /api/account/refresh-token`-Endpunkt ist das Herzstück der serverseitigen Refresh-Logik.
 
@@ -2004,7 +2009,7 @@ Obwohl wir nur den neuen Access Token senden, verpacken wir ihn in ein JSON-Obje
 1.  **Konsistenz:** Moderne APIs kommunizieren fast ausschließlich über JSON. Indem wir immer ein JSON-Objekt zurückgeben, halten wir uns an diesen Standard. Das Frontend erwartet ein JSON und kann es mit `response.json()` einfach verarbeiten.
 2.  **Erweiterbarkeit:** Wenn wir in Zukunft mehr Informationen zurückgeben möchten (z.B. die neue Ablaufzeit des Tokens), können wir das Objekt einfach erweitern (`new { token = "...", expires_in = 300 }`), ohne die bestehende Struktur zu ändern und ältere Clients zu beeinträchtigen. Würden wir nur reinen Text senden, wäre eine solche Erweiterung nicht möglich, ohne einen "Breaking Change" einzuführen.
 
-### Konfiguration der Token-Validierung im Detail
+## Konfiguration der Token-Validierung im Detail
 
 In der `Program.cs` konfigurieren wir, wie das Backend die vom Frontend gesendeten `Access Tokens` validieren soll.
 
