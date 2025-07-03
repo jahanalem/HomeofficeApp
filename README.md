@@ -1895,3 +1895,128 @@ Dieses Diagramm veranschaulicht den sicheren end-to-end Aktualisierungstoken-Mec
 
 ![refresh-token](https://github.com/user-attachments/assets/87c7420c-45d2-4437-9cb7-bf3e125e1b61)
 
+
+-----
+
+## Die Refresh-Token-Logik im Backend
+
+Während der `Access Token` zustandslos ist und im Frontend gespeichert wird, erfordert der `Refresh Token` eine robustere, sicherere Handhabung im Backend. Er wird sowohl in der Datenbank gespeichert als auch in einem sicheren Cookie an den Browser gesendet.
+
+### Sichere Speicherung des Refresh Tokens
+
+Die Strategie für den Refresh Token basiert auf zwei Speicherorten:
+
+1.  **In der Datenbank:** Ein Verweis auf den Refresh Token wird in der Datenbank gespeichert. Hierfür wurde die Standard-Tabelle `AspNetUserTokens` von ASP.NET Core Identity erweitert. Dies erlaubt uns, serverseitig zu überprüfen, ob ein vom Client gesendeter Token gültig ist und zu welchem Benutzer er gehört.
+2.  **Im Browser-Cookie:** Der eigentliche Wert des Refresh Tokens wird in einem `HttpOnly`-Cookie gespeichert. Dies ist der sicherste Weg, um ihn im Browser aufzubewahren, da er so für clientseitiges JavaScript unzugänglich ist.
+
+### Das Refresh-Token-Cookie: Optionen im Detail
+
+Beim Setzen des Cookies im `TokenService` werden spezifische `CookieOptions` verwendet, um maximale Sicherheit und Funktionalität zu gewährleisten.
+
+<details>
+<summary><b>Code: SetRefreshTokenCookie in TokenService.cs</b></summary>
+<br>
+
+```csharp
+public void SetRefreshTokenCookie(string refreshToken)
+{
+    if (_httpContextAccessor.HttpContext is not null)
+    {
+        var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !isDevelopment,
+            SameSite = isDevelopment ? SameSiteMode.Lax : SameSiteMode.Strict,
+            Expires = DateTime.UtcNow.AddDays(30),
+            Path = "/"
+        };
+
+        _httpContextAccessor.HttpContext.Response.Cookies.Append(
+            TokenConstants.RefreshToken,
+            refreshToken,
+            cookieOptions);
+    }
+}
+```
+</details>
+
+Hier ist die Erklärung der einzelnen Optionen:
+
+  * **`HttpOnly = true`**: Dies ist eine **entscheidende Sicherheitsmaßnahme**. Sie verhindert, dass auf das Cookie über JavaScript (`document.cookie`) zugegriffen werden kann. Dadurch wird das Risiko von Cross-Site-Scripting (XSS)-Angriffen, bei denen ein Angreifer versucht, den Token zu stehlen, erheblich reduziert.
+
+  * **`Secure = !isDevelopment`**: Diese Einstellung erzwingt, dass das Cookie nur über eine sichere **HTTPS**-Verbindung gesendet wird. Für die lokale Entwicklung (`isDevelopment = true`) wird diese Regel auf `false` gesetzt, damit wir die Anwendung auch ohne konfiguriertes SSL/TLS unter `http://localhost` testen können. In der Produktion ist `Secure = true` ein Muss.
+
+  * **`SameSite`**: Dies ist eine weitere wichtige Sicherheitsfunktion zum Schutz vor Cross-Site Request Forgery (CSRF)-Angriffen. Sie kontrolliert, ob ein Cookie mit Anfragen gesendet wird, die von anderen Domains initiiert werden.
+
+      * **`SameSiteMode.Strict`**: Die strengste Einstellung. Der Browser sendet das Cookie **nur**, wenn die Anfrage von exakt derselben Domain stammt, die das Cookie gesetzt hat. Dies ist die sicherste Option für die Produktion.
+      * **`SameSiteMode.Lax`**: Ein guter Kompromiss. Das Cookie wird bei Anfragen von derselben Domain und auch bei Top-Level-Navigationen (z. B. wenn ein Benutzer auf einen Link zu Ihrer Seite von einer externen Seite klickt) gesendet. Wir verwenden dies in der Entwicklung, da Frontend und Backend oft auf unterschiedlichen Ports laufen (z. B. `localhost:4200` und `localhost:5001`), was als "cross-site" gelten kann.
+
+  * **`Expires`**: Legt die Lebensdauer des Cookies fest. Hier setzen wir sie auf 30 Tage. Nach diesem Datum löscht der Browser das Cookie automatisch.
+
+  * **`Path = "/"`**: Stellt sicher, dass das Cookie für alle Pfade auf der Domain verfügbar ist (z. B. `/api/account`, `/api/timetracking` etc.).
+
+### Zusammenspiel mit dem Frontend: CORS und Credentials
+
+Damit der Browser das Refresh-Token-Cookie überhaupt an das Backend senden darf, muss die CORS-Konfiguration dies explizit erlauben.
+
+```csharp
+// CORS-Policy for the Angular frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // <-- Dieser Teil ist entscheidend
+    });
+});
+```
+
+**Warum ist `.AllowCredentials()` notwendig?**
+Standardmäßig verbieten Browser aus Sicherheitsgründen das Senden von "Credentials" (wie Cookies oder Authentifizierungs-Headern) bei Cross-Origin-Anfragen. Da unser Angular-Frontend auf `localhost:4200` und unser Backend auf einem anderen Port läuft, handelt es sich um eine Cross-Origin-Anfrage. Die Methode **`.AllowCredentials()`** signalisiert dem Browser, dass der Server Anfragen mit Credentials von der angegebenen Origin (`http://localhost:4200`) akzeptiert und ihnen vertraut. Ohne diese Erlaubnis würde der Browser das Cookie blockieren und der Refresh-Mechanismus würde fehlschlagen.
+
+### Der Refresh-Prozess: Der `/refresh-token`-Endpunkt
+
+Der `POST /api/account/refresh-token`-Endpunkt ist das Herzstück der serverseitigen Refresh-Logik.
+
+```csharp
+[HttpPost("refresh-token")]
+[AllowAnonymous]
+public async Task<IActionResult> RefreshToken()
+{
+    string? newAccessToken = await _authService.RefreshTokenAsync();
+    if (string.IsNullOrEmpty(newAccessToken))
+    {
+        return Unauthorized();
+    }
+
+    return Ok(new { token = newAccessToken });
+}
+```
+
+**Warum wird ein JSON-Objekt (`new { token = newAccessToken }`) zurückgegeben?**
+
+Obwohl wir nur den neuen Access Token senden, verpacken wir ihn in ein JSON-Objekt. Dies ist eine "Best Practice" für das API-Design aus zwei Gründen:
+
+1.  **Konsistenz:** Moderne APIs kommunizieren fast ausschließlich über JSON. Indem wir immer ein JSON-Objekt zurückgeben, halten wir uns an diesen Standard. Das Frontend erwartet ein JSON und kann es mit `response.json()` einfach verarbeiten.
+2.  **Erweiterbarkeit:** Wenn wir in Zukunft mehr Informationen zurückgeben möchten (z.B. die neue Ablaufzeit des Tokens), können wir das Objekt einfach erweitern (`new { token = "...", expires_in = 300 }`), ohne die bestehende Struktur zu ändern und ältere Clients zu beeinträchtigen. Würden wir nur reinen Text senden, wäre eine solche Erweiterung nicht möglich, ohne einen "Breaking Change" einzuführen.
+
+### Konfiguration der Token-Validierung im Detail
+
+In der `Program.cs` konfigurieren wir, wie das Backend die vom Frontend gesendeten `Access Tokens` validieren soll.
+
+```csharp
+options.TokenValidationParameters = new TokenValidationParameters
+{
+    // ... andere Validierungen
+    ValidateLifetime = true,
+    ClockSkew = TimeSpan.Zero,
+};
+```
+
+  * **`ValidateLifetime = true`**: Stellt sicher, dass das Ablaufdatum des Tokens (`Expires`) überprüft wird. Abgelaufene Tokens werden somit abgelehnt.
+  * **`ClockSkew = TimeSpan.Zero`**: Dies ist eine wichtige Sicherheitseinstellung. Standardmäßig erlaubt .NET eine Toleranz von 5 Minuten (`ClockSkew` von 5 Minuten), um kleine Zeitunterschiede zwischen dem Server, der den Token ausstellt, und dem Server, der ihn validiert, auszugleichen. Das bedeutet, ein Token wäre noch 5 Minuten nach seiner eigentlichen Ablaufzeit gültig. Indem wir **`TimeSpan.Zero`** setzen, entfernen wir diese Toleranz vollständig. Der Token wird in der exakten Sekunde ungültig, in der er abläuft. Dies erhöht die Sicherheit, da die Lebensdauer des Tokens präzise durchgesetzt wird.
+
