@@ -100,19 +100,5 @@ namespace Homeoffice.Services
 
             return newAccessToken;
         }
-
-        public async Task<User?> GetUserByRefreshTokenAsync(string refreshToken)
-        {
-            var tokenEntry = await _context.Set<ApplicationUserToken>()
-                .Where(t =>
-                    t.LoginProvider == TokenConstants.LocalProvider &&
-                    t.Name == TokenConstants.RefreshToken &&
-                    t.Value == refreshToken)
-                .FirstOrDefaultAsync();
-
-            return tokenEntry != null
-                ? await _userManager.FindByIdAsync(tokenEntry.UserId)
-                : null;
-        }
     }
 }

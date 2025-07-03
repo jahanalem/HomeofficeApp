@@ -29,10 +29,5 @@
         /// Represents the local provider
         /// </summary>
         public const string LocalProvider = "HomeofficeRefresh";
-
-        /// <summary>
-        /// Represents the name of the DeviceId used to distinguish different devices.
-        /// </summary>
-        public const string DeviceId = "DeviceId";
     }
 }

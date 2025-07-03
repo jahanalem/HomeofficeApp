@@ -3,8 +3,6 @@ import { AuthService } from '../services/auth.service';
 import { inject } from '@angular/core';
 import { TokenService } from '../services/token.service';
 import { catchError, filter, switchMap, take, throwError } from 'rxjs';
-import { StorageService } from '../services/storage.service';
-import { LOCAL_STORAGE_KEYS } from '../constants/auth';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
